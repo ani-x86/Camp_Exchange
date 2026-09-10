@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+/*
+ * CampusXchange — Design Tokens (Tailwind CSS v4)
+ * Source: design.md §1 Colors, §2 Type, §5 Motion
+ *
+ * All values here are canonical from the design spec.
+ * Do NOT add colors, fonts, or animation patterns beyond what's listed.
+ */
+
+@theme {
+  /* ── Colors ─────────────────────────────────────── */
+  --color-bone: #F2EFE6;
+  --color-ink: #17181A;
+  --color-moss: #3F6B3E;
+  --color-marigold: #E0A72E;
+  --color-clay: #C9C2B2;
+  --color-rust: #B5482A;
+
+  /* Moss lightened 6% for primary button hover — design.md §5 "background lightens 6%" */
+  --color-moss-hover: #4A7D48;
+
+  /* ── Typography ─────────────────────────────────── */
+  --font-heading: 'General Sans', sans-serif;
+  --font-sans: 'Inter', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+
+  /* ── Timing / Easing ────────────────────────────── */
+  --ease-out: cubic-bezier(0.0, 0.0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0.0, 0.2, 1);
+
+  /* ── Animations ─────────────────────────────────── */
+  --animate-field-shake: field-shake 200ms var(--ease-in-out);
+  --animate-fade-in: fade-in 150ms var(--ease-out) forwards;
+  --animate-fade-out: fade-out 150ms var(--ease-out) forwards;
+
+  /* ── Keyframes ──────────────────────────────────── */
+  @keyframes field-shake {
+    0%, 100% { transform: translateX(0); }
+    25%      { transform: translateX(-4px); }
+    50%      { transform: translateX(4px); }
+    75%      { transform: translateX(-4px); }
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  @keyframes fade-out {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+  }
+
+  @keyframes underline-grow {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
+  }
+}
+
+/* ── Base ────────────────────────────────────────── */
+
+html {
+  background-color: var(--color-bone);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* ── Reduced Motion ─────────────────────────────── */
+/* design.md §5: "reduced-motion users get instant state changes
+   with a simple opacity crossfade, no transforms." */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Focus Ring ──────────────────────────────────── */
+/* design.md §6: "2px Moss outline, offset 2px" */
+
+:focus-visible {
+  outline: 2px solid var(--color-moss);
+  outline-offset: 2px;
+}
