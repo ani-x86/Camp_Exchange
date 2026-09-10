@@ -38,7 +38,10 @@ export default function AuthSuccessOverlay({ gifs = [], onComplete, active }) {
   }, []);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active) {
+      setPhase('idle');
+      return;
+    }
 
     // Respect prefers-reduced-motion: skip overlay entirely
     if (prefersReducedMotion()) {
@@ -54,10 +57,7 @@ export default function AuthSuccessOverlay({ gifs = [], onComplete, active }) {
 
     const randomGif = gifs[Math.floor(Math.random() * gifs.length)];
     let cancelled = false;
-
-    // Preload GIF with a 300ms timeout
-    const img = new Image();
-    let loadTimeout;
+    let t1, t2, t3, loadTimeout;
 
     const startSequence = () => {
       if (cancelled) return;
@@ -65,16 +65,16 @@ export default function AuthSuccessOverlay({ gifs = [], onComplete, active }) {
       setPhase('fade-in');
 
       // After fade-in (150ms), hold for up to 1200ms
-      setTimeout(() => {
+      t1 = setTimeout(() => {
         if (cancelled) return;
         setPhase('hold');
 
-        setTimeout(() => {
+        t2 = setTimeout(() => {
           if (cancelled) return;
           setPhase('fade-out');
 
           // After fade-out (150ms), signal completion
-          setTimeout(() => {
+          t3 = setTimeout(() => {
             if (cancelled) return;
             setPhase('done');
             onCompleteRef.current?.();
@@ -83,6 +83,7 @@ export default function AuthSuccessOverlay({ gifs = [], onComplete, active }) {
       }, FADE_DURATION);
     };
 
+    const img = new Image();
     img.onload = () => {
       clearTimeout(loadTimeout);
       startSequence();
@@ -96,12 +97,8 @@ export default function AuthSuccessOverlay({ gifs = [], onComplete, active }) {
     // 300ms timeout — if GIF hasn't loaded, route anyway
     loadTimeout = setTimeout(() => {
       if (!cancelled) {
-        // If the image loaded in time, startSequence already ran.
-        // If not, just route immediately.
-        if (phase === 'idle') {
-          onCompleteRef.current?.();
-          cancelled = true;
-        }
+        onCompleteRef.current?.();
+        cancelled = true;
       }
     }, LOAD_TIMEOUT);
 
@@ -110,8 +107,11 @@ export default function AuthSuccessOverlay({ gifs = [], onComplete, active }) {
     return () => {
       cancelled = true;
       clearTimeout(loadTimeout);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
     };
-  }, [active, gifs, prefersReducedMotion, phase]);
+  }, [active]);
 
   // Don't render anything when idle or done
   if (phase === 'idle' || phase === 'done' || !gifUrl) return null;

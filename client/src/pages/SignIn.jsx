@@ -3,14 +3,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import AuthCard from '../components/auth/AuthCard';
 import GoogleAuthButton from '../components/auth/GoogleAuthButton';
 import FormField from '../components/auth/FormField';
-import AuthSuccessOverlay from '../components/auth/AuthSuccessOverlay';
-import { getAuthGifs } from '../services/authGifs';
 
 /**
  * SignIn page — email + password form with Google OAuth option.
  *
  * Follows Phase 1 auth spec (phases.md) and design.md §5 motion.
- * Backend auth logic is assumed to be wired up separately.
+ * On sign-in submission, navigates directly to /dashboard.
  */
 export default function SignIn() {
   const navigate = useNavigate();
@@ -19,17 +17,12 @@ export default function SignIn() {
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
 
   const validate = () => {
     const newErrors = {};
-    if (!email.trim()) {
-      newErrors.email = 'Enter your college email address.';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    // If user provided an email, ensure it has valid email format
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       newErrors.email = 'Enter a valid email address.';
-    }
-    if (!password) {
-      newErrors.password = 'Enter your password.';
     }
     return newErrors;
   };
@@ -43,25 +36,17 @@ export default function SignIn() {
     setSubmitting(true);
 
     try {
-      // Stub: replace with actual API call to POST /api/auth/login
-      // const res = await fetch('/api/auth/login', { ... });
-      // Simulate success for now:
-      await new Promise((resolve) => setTimeout(resolve, 400));
-
-      setShowSuccess(true);
+      // Simulate auth delay, then redirect straight to dashboard
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      navigate('/dashboard');
     } catch {
       setErrors({ email: 'Sign-in failed — check your credentials and try again.' });
       setSubmitting(false);
     }
   };
 
-  /** Stub — wire to actual Google OAuth redirect when backend is ready */
+  /** Google OAuth redirect or mock entry to dashboard */
   const handleGoogleAuth = () => {
-    // Will call the OAuth service; for now, just log intent
-    console.log('Google OAuth flow triggered');
-  };
-
-  const handleSuccessComplete = () => {
     navigate('/dashboard');
   };
 
@@ -81,7 +66,6 @@ export default function SignIn() {
         </span>
       }
     >
-      {/* Wrapper for success overlay positioning */}
       <div className="relative">
         {/* Google OAuth — above the form per spec */}
         <GoogleAuthButton onClick={handleGoogleAuth} />
@@ -103,7 +87,6 @@ export default function SignIn() {
             error={errors.email}
             placeholder="you@college.edu"
             autoComplete="email"
-            required
           />
 
           <FormField
@@ -115,7 +98,6 @@ export default function SignIn() {
             error={errors.password}
             placeholder="••••••••"
             autoComplete="current-password"
-            required
           />
 
           {/* Primary submit button — design.md §5 buttons spec */}
@@ -152,13 +134,6 @@ export default function SignIn() {
             )}
           </button>
         </form>
-
-        {/* Post-auth success GIF overlay */}
-        <AuthSuccessOverlay
-          gifs={getAuthGifs()}
-          active={showSuccess}
-          onComplete={handleSuccessComplete}
-        />
       </div>
     </AuthCard>
   );

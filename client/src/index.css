@@ -33,6 +33,9 @@
   --animate-field-shake: field-shake 200ms var(--ease-in-out);
   --animate-fade-in: fade-in 150ms var(--ease-out) forwards;
   --animate-fade-out: fade-out 150ms var(--ease-out) forwards;
+  --animate-toast-enter: toast-enter 180ms var(--ease-out) forwards;
+  --animate-toast-exit: toast-exit 150ms var(--ease-out) forwards;
+  --animate-chip-enter: chip-enter 150ms var(--ease-out) forwards;
 
   /* ── Keyframes ──────────────────────────────────── */
   @keyframes field-shake {
@@ -52,9 +55,75 @@
     to   { opacity: 0; }
   }
 
+  @keyframes toast-enter {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes toast-exit {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+  }
+
+  /* Chip cascade entry — 6px slide up + fade in over 150ms */
+  @keyframes chip-enter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
   @keyframes underline-grow {
     from { transform: scaleX(0); }
     to   { transform: scaleX(1); }
+  }
+
+  /* Stepper count pop — design.md §5 spring feel: 1 → 1.15 → 1 over 150ms */
+  @keyframes stepper-pop {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+
+  /* Message bubble entry — 8px slide up + fade in over 150ms */
+  @keyframes message-enter {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Chat typing indicator dot pulse — opacity 0.3 → 1 → 0.3 */
+  @keyframes typing-dot {
+    0%, 100% {
+      opacity: 0.3;
+      transform: scale(0.85);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* Cart icon badge bounce — design.md §5: 1 → 1.2 → 1, 300ms */
+  @keyframes cart-badge-bounce {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.2); }
+    100% { transform: scale(1); }
   }
 }
 
