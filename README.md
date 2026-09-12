@@ -1,5 +1,5 @@
 <div align="center">
-<img src="C:\AX\Sem_project\Camp_Exchange\Content\assets" alt="Camp-x banner">
+  <img src="./Content/assets/Campxchange-home-banner.png" alt="CampusXchange Banner" width="100%" />
 </div>
 
 <h1 align="center">CampusXchange (CampX)</h1>
