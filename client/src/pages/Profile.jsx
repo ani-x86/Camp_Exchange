@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import ProfilePhoto from '../components/profile/ProfilePhoto';
 import ProfileField from '../components/profile/ProfileField';
 import BioBox from '../components/profile/BioBox';
+import SellSection from '../features/listing/SellSection';
+import AddItemPanel from '../features/listing/AddItemPanel';
 
 /**
  * Initial mock profile data representing a verified college student.
@@ -35,10 +37,20 @@ const INITIAL_PROFILE = {
  *  - Toast confirmation with asymmetric slide-up/fade enter and fade-only exit.
  */
 export default function Profile() {
+  const location = useLocation();
+  const isAddItem = location.pathname === '/profile/add-item';
+
   const [profile, setProfile] = useState(INITIAL_PROFILE);
   const [draftProfile, setDraftProfile] = useState(INITIAL_PROFILE);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null); // { message, exiting: boolean } | null
+
+  // Seller object derived from current saved profile
+  const seller = {
+    name: profile.name,
+    verified: profile.isVerified,
+    campus: 'ABC College',
+  };
 
   // Check if anything changed compared to saved profile
   const isDirty =
@@ -102,7 +114,7 @@ export default function Profile() {
       <header className="border-b border-clay bg-bone px-4 py-3 sm:px-6">
         <div className="mx-auto flex max-w-4xl items-center justify-between">
           <Link
-            to="/dashboard"
+            to={isAddItem ? '/profile' : '/dashboard'}
             className="flex items-center gap-2 text-sm font-medium text-ink hover:text-moss transition-colors duration-120"
           >
             <svg
@@ -119,7 +131,7 @@ export default function Profile() {
               <line x1="19" y1="12" x2="5" y2="12" />
               <polyline points="12 19 5 12 12 5" />
             </svg>
-            <span>Back to board</span>
+            <span>{isAddItem ? 'Back to profile' : 'Back to board'}</span>
           </Link>
 
           <Link
@@ -142,160 +154,173 @@ export default function Profile() {
           />
 
           <div className="rounded-sm border border-clay bg-bone px-6 py-7 sm:px-8">
-            {/* Header: Photo + Name + Verification badge (Horizontal layout) */}
-            <div className="flex items-center gap-4 sm:gap-5 pb-5 border-b border-clay">
-              <div className="shrink-0">
-                <ProfilePhoto
-                  initialUrl={draftProfile.photoUrl}
-                  name={draftProfile.name}
-                  onPhotoChange={(newUrl) =>
-                    setDraftProfile((prev) => ({ ...prev, photoUrl: newUrl }))
-                  }
-                />
-              </div>
-
-              {/* Full Name & Student details — horizontal to photo */}
-              <div className="flex-1 min-w-0">
-                <h1 className="font-heading text-xl font-bold text-ink sm:text-2xl truncate">
-                  {profile.name}
-                </h1>
-
-                {/* Verified badge — design.md §6 */}
-                {profile.isVerified && (
-                  <div className="mt-1 flex items-center gap-1.5 text-xs text-moss font-medium">
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                    >
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                    <span>Verified Student</span>
+            {isAddItem ? (
+              /* ── Add Item Panel (route: /profile/add-item) ── */
+              <AddItemPanel seller={seller} />
+            ) : (
+              /* ── Profile Fields (route: /profile) ── */
+              <>
+                {/* Header: Photo + Name + Verification badge */}
+                <div className="flex items-center gap-4 sm:gap-5 pb-5 border-b border-clay">
+                  <div className="shrink-0">
+                    <ProfilePhoto
+                      initialUrl={draftProfile.photoUrl}
+                      name={draftProfile.name}
+                      onPhotoChange={(newUrl) =>
+                        setDraftProfile((prev) => ({ ...prev, photoUrl: newUrl }))
+                      }
+                    />
                   </div>
-                )}
 
-                <p className="mt-1 text-xs text-ink/50 font-sans">
-                  {profile.branch} • {profile.year}
-                </p>
-              </div>
-            </div>
+                  {/* Full Name & Student details */}
+                  <div className="flex-1 min-w-0">
+                    <h1 className="font-heading text-xl font-bold text-ink sm:text-2xl truncate">
+                      {profile.name}
+                    </h1>
 
-            {/* Fields list */}
-            <div className="space-y-1">
-              {/* Email (Editable) */}
-              <ProfileField
-                label="College email"
-                value={draftProfile.email}
-                type="email"
-                isEditable={true}
-                onChange={(val) =>
-                  setDraftProfile((prev) => ({ ...prev, email: val }))
-                }
-                validate={validateEmail}
-                notice="Note: Changing your college email will re-trigger OTP verification to maintain student verification status."
-              />
+                    {/* Verified badge — design.md §6 */}
+                    {profile.isVerified && (
+                      <div className="mt-1 flex items-center gap-1.5 text-xs text-moss font-medium">
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        <span>Verified Student</span>
+                      </div>
+                    )}
 
-              {/* Mobile Number (Editable) */}
-              <ProfileField
-                label="Mobile number"
-                value={draftProfile.mobile}
-                type="tel"
-                isEditable={true}
-                onChange={(val) =>
-                  setDraftProfile((prev) => ({ ...prev, mobile: val }))
-                }
-                validate={validateMobile}
-              />
+                    <p className="mt-1 text-xs text-ink/50 font-sans">
+                      {profile.branch} • {profile.year}
+                    </p>
+                  </div>
+                </div>
 
-              {/* PRN (Read-only, locked, literal data in IBM Plex Mono) */}
-              <ProfileField
-                label="PRN (Permanent Registration No.)"
-                value={profile.prn}
-                isEditable={false}
-                isLocked={true}
-                isMono={true}
-              />
-
-              {/* Branch (Read-only, locked) */}
-              <ProfileField
-                label="Branch / Department"
-                value={profile.branch}
-                isEditable={false}
-                isLocked={true}
-              />
-
-              {/* Year (Read-only, locked) */}
-              <ProfileField
-                label="Academic year"
-                value={profile.year}
-                isEditable={false}
-                isLocked={true}
-              />
-
-              {/* Address (Read-only, locked) */}
-              <ProfileField
-                label="Campus address"
-                value={profile.address}
-                isEditable={false}
-                isLocked={true}
-              />
-            </div>
-
-            {/* Hairline divider */}
-            <div className="my-5 border-t border-clay" />
-
-            {/* Bio Box */}
-            <BioBox
-              value={draftProfile.bio}
-              onChange={(val) =>
-                setDraftProfile((prev) => ({ ...prev, bio: val }))
-              }
-              maxLength={300}
-              disabled={saving}
-            />
-
-            {/* Save Changes Button — design.md §5 primary button spec */}
-            <div className="mt-6 pt-2">
-              <button
-                type="button"
-                onClick={handleSaveAll}
-                disabled={!isDirty || saving}
-                className={`
-                  group relative w-full rounded-sm px-4 py-2.5
-                  font-sans text-sm font-medium
-                  transition-[background-color,transform] duration-150 ease-out
-                  ${
-                    !isDirty || saving
-                      ? 'cursor-not-allowed border border-clay bg-clay text-ink/40'
-                      : 'cursor-pointer bg-moss text-bone hover:bg-moss-hover active:scale-[0.97] active:duration-100'
-                  }
-                `}
-              >
-                <span className="relative z-10">
-                  {saving ? 'Saving changes…' : 'Save changes'}
-                </span>
-
-                {/* Underline accent grows from center on hover — 150ms */}
-                {isDirty && !saving && (
-                  <span
-                    className="
-                      absolute bottom-2 left-1/2 h-px w-3/5
-                      -translate-x-1/2 scale-x-0
-                      bg-bone/50
-                      transition-transform duration-150 ease-out
-                      group-hover:scale-x-100
-                    "
-                    aria-hidden="true"
+                {/* Fields list */}
+                <div className="space-y-1">
+                  {/* Email (Editable) */}
+                  <ProfileField
+                    label="College email"
+                    value={draftProfile.email}
+                    type="email"
+                    isEditable={true}
+                    onChange={(val) =>
+                      setDraftProfile((prev) => ({ ...prev, email: val }))
+                    }
+                    validate={validateEmail}
+                    notice="Note: Changing your college email will re-trigger OTP verification to maintain student verification status."
                   />
-                )}
-              </button>
-            </div>
+
+                  {/* Mobile Number (Editable) */}
+                  <ProfileField
+                    label="Mobile number"
+                    value={draftProfile.mobile}
+                    type="tel"
+                    isEditable={true}
+                    onChange={(val) =>
+                      setDraftProfile((prev) => ({ ...prev, mobile: val }))
+                    }
+                    validate={validateMobile}
+                  />
+
+                  {/* PRN (Read-only, locked, literal data in IBM Plex Mono) */}
+                  <ProfileField
+                    label="PRN (Permanent Registration No.)"
+                    value={profile.prn}
+                    isEditable={false}
+                    isLocked={true}
+                    isMono={true}
+                  />
+
+                  {/* Branch (Read-only, locked) */}
+                  <ProfileField
+                    label="Branch / Department"
+                    value={profile.branch}
+                    isEditable={false}
+                    isLocked={true}
+                  />
+
+                  {/* Year (Read-only, locked) */}
+                  <ProfileField
+                    label="Academic year"
+                    value={profile.year}
+                    isEditable={false}
+                    isLocked={true}
+                  />
+
+                  {/* Address (Read-only, locked) */}
+                  <ProfileField
+                    label="Campus address"
+                    value={profile.address}
+                    isEditable={false}
+                    isLocked={true}
+                  />
+                </div>
+
+                {/* Hairline divider */}
+                <div className="my-5 border-t border-clay" />
+
+                {/* Bio Box */}
+                <BioBox
+                  value={draftProfile.bio}
+                  onChange={(val) =>
+                    setDraftProfile((prev) => ({ ...prev, bio: val }))
+                  }
+                  maxLength={300}
+                  disabled={saving}
+                />
+
+                {/* ── Sell on CampX entry — listing.md §1.1 ── */}
+                <div className="mt-5">
+                  <SellSection />
+                </div>
+
+                {/* Save Changes Button — design.md §5 primary button spec */}
+                <div className="mt-4 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveAll}
+                    disabled={!isDirty || saving}
+                    className={`
+                      group relative w-full rounded-sm px-4 py-2.5
+                      font-sans text-sm font-medium
+                      transition-[background-color,transform] duration-150 ease-out
+                      ${
+                        !isDirty || saving
+                          ? 'cursor-not-allowed border border-clay bg-clay text-ink/40'
+                          : 'cursor-pointer bg-moss text-bone hover:bg-moss-hover active:scale-[0.97] active:duration-100'
+                      }
+                    `}
+                  >
+                    <span className="relative z-10">
+                      {saving ? 'Saving changes…' : 'Save changes'}
+                    </span>
+
+                    {/* Underline accent grows from center on hover — 150ms */}
+                    {isDirty && !saving && (
+                      <span
+                        className="
+                          absolute bottom-2 left-1/2 h-px w-3/5
+                          -translate-x-1/2 scale-x-0
+                          bg-bone/50
+                          transition-transform duration-150 ease-out
+                          group-hover:scale-x-100
+                        "
+                        aria-hidden="true"
+                      />
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </main>

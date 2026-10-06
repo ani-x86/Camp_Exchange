@@ -1,37 +1,60 @@
+import { useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ImageScroller } from './ImageScroller';
 
 /**
  * ProductCard — pinboard index-card tile following design.md §3 and §5.
  *
  * Visual spec (design.md §3):
- *  - NOT rounded SaaS card with drop shadow.
- *  - Border: 1px Clay, rounded-sm (subtle corner, not pill).
- *  - Marigold "string tag" corner accent: top-right, `rounded-bl-lg`.
- *  - Photo in fixed-size frame — overflow hidden, NO layout shift on zoom.
- *  - Price in IBM Plex Mono (design.md §2: data, not prose).
- *
- * Hover spec (design.md §5 product card):
- *  - Photo scales to 1.03 inside frame, 200ms ease-out.
- *  - Marigold tag lifts 3° simultaneously, same 200ms trigger.
- *  - ONE motion, TWO elements — not separate animations.
- *  - Click: card dips to 0.98 for 80ms before navigating.
+ *  - 1px Clay border, rounded-sm, Bone paper background.
+ *  - Marigold "string tag" corner accent at top-right, lifts 3° on card hover.
+ *  - Photo zoom to 1.03 on hover (200ms ease-out) coordinated with tag lift.
+ *  - Card dips to 0.98 scale on click (80ms).
+ *  - Typography: Heading (General Sans), body (Inter), price (IBM Plex Mono).
  *
  * Props:
- *  - product  ({ _id, title, price, imageUrl, category })
+ *  - product: { _id, title, description, price, images, imageUrl }
  */
-export default function ProductCard({ product }) {
+export function ProductCard({ product }) {
   const navigate = useNavigate();
-  const { _id, title, price, imageUrl } = product;
+  const { _id, title, description, price, images, imageUrl } = product;
+
+  // Differentiate horizontal swipe gestures on photos from card clicks
+  const pointerStart = useRef({ x: 0, y: 0 });
+  const isSwiping = useRef(false);
+
+  const productImages = images || (imageUrl ? [imageUrl] : []);
+
+  const handlePointerDown = (e) => {
+    pointerStart.current = { x: e.clientX, y: e.clientY };
+    isSwiping.current = false;
+  };
+
+  const handlePointerMove = (e) => {
+    if (Math.abs(e.clientX - pointerStart.current.x) > 8) {
+      isSwiping.current = true;
+    }
+  };
 
   const handleClick = () => {
-    // 80ms dip is handled by active:scale CSS; navigate fires after
-    navigate(`/products/${_id}`);
+    if (!isSwiping.current) {
+      navigate(`/products/${_id}`);
+    }
   };
 
   return (
-    <button
-      type="button"
+    <article
+      tabIndex={0}
+      role="button"
       onClick={handleClick}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleClick();
+        }
+      }}
       className="
         group relative w-full text-left
         border border-clay rounded-sm bg-bone
@@ -54,49 +77,25 @@ export default function ProductCard({ product }) {
         aria-hidden="true"
       />
 
-      {/* Photo — fixed-aspect frame, no layout shift on zoom */}
-      <div className="relative overflow-hidden bg-clay/20" style={{ paddingBottom: '66%' }}>
-        {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={title}
-            className="
-              absolute inset-0 h-full w-full object-cover
-              transition-transform duration-200 ease-out
-              group-hover:scale-[1.03]
-            "
-            loading="lazy"
-          />
-        ) : (
-          /* Placeholder when no image is set */
-          <div className="absolute inset-0 flex items-center justify-center">
-            <svg
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.2"
-              className="text-clay"
-              aria-hidden="true"
-            >
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-              <circle cx="8.5" cy="8.5" r="1.5" />
-              <polyline points="21 15 16 10 5 21" />
-            </svg>
-          </div>
-        )}
-      </div>
+      {/* Photos — snap-scrollable gallery */}
+      <ImageScroller images={productImages} alt={title} />
 
       {/* Card body */}
       <div className="px-3 py-2.5">
-        <p className="font-sans text-sm font-medium text-ink leading-snug line-clamp-2">
+        <h3 className="font-heading text-sm font-semibold text-ink leading-snug line-clamp-2">
           {title}
-        </p>
-        <p className="mt-1 font-mono text-sm text-ink/80">
-          ₹{price.toLocaleString('en-IN')}
+        </h3>
+        {description && (
+          <p className="mt-0.5 font-sans text-xs text-ink/60 leading-snug line-clamp-2">
+            {description}
+          </p>
+        )}
+        <p className="mt-1.5 font-mono text-sm text-ink/80">
+          ₹{Number(price).toLocaleString('en-IN')}
         </p>
       </div>
-    </button>
+    </article>
   );
 }
+
+export default ProductCard;

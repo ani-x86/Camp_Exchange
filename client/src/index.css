@@ -125,6 +125,30 @@
     50%  { transform: scale(1.2); }
     100% { transform: scale(1); }
   }
+
+  /* Checkmark path draw — design.md §5 verification badge, fires once on publish success */
+  --animate-draw-check: draw-check 400ms ease-out forwards;
+
+  @keyframes draw-check {
+    from { stroke-dashoffset: 40; }
+    to   { stroke-dashoffset: 0; }
+  }
+
+  /* Chat drawer — slides in from the right (desktop) */
+  --animate-slide-in-right: slide-in-right 200ms ease-out;
+
+  @keyframes slide-in-right {
+    from { transform: translateX(100%); }
+    to   { transform: translateX(0); }
+  }
+
+  /* Chat panel — slides up from the bottom (mobile, if needed) */
+  --animate-slide-in-up: slide-in-up 220ms ease-out;
+
+  @keyframes slide-in-up {
+    from { transform: translateY(100%); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+  }
 }
 
 /* ── Base ────────────────────────────────────────── */

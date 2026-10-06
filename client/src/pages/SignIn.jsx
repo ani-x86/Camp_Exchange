@@ -4,6 +4,8 @@ import AuthCard from '../components/auth/AuthCard';
 import GoogleAuthButton from '../components/auth/GoogleAuthButton';
 import FormField from '../components/auth/FormField';
 
+import { connectSocket } from '../features/chat/socket';
+
 /**
  * SignIn page — email + password form with Google OAuth option.
  *
@@ -20,7 +22,6 @@ export default function SignIn() {
 
   const validate = () => {
     const newErrors = {};
-    // If user provided an email, ensure it has valid email format
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       newErrors.email = 'Enter a valid email address.';
     }
@@ -36,17 +37,47 @@ export default function SignIn() {
     setSubmitting(true);
 
     try {
-      // Simulate auth delay, then redirect straight to dashboard
-      await new Promise((resolve) => setTimeout(resolve, 250));
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ collegeEmail: email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Sign-in failed.');
+      }
+      localStorage.setItem('accessToken', data.accessToken);
+      localStorage.setItem('userId', data.user.id);
+      localStorage.setItem('verificationStatus', data.user.verificationStatus);
+      localStorage.setItem('userName', data.user.name);
+      connectSocket(data.accessToken);
       navigate('/dashboard');
-    } catch {
-      setErrors({ email: 'Sign-in failed — check your credentials and try again.' });
+    } catch (err) {
+      setErrors({ email: err.message || 'Sign-in failed — check your credentials and try again.' });
       setSubmitting(false);
     }
   };
 
-  /** Google OAuth redirect or mock entry to dashboard */
-  const handleGoogleAuth = () => {
+  /** Quick Demo Sign-In as Aarav Sharma (Verified Student) */
+  const handleGoogleAuth = async () => {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ collegeEmail: 'aarav.sharma@college.edu', password: 'CampX@demo2025' }),
+      });
+      const data = await res.json();
+      if (res.ok && data.accessToken) {
+        localStorage.setItem('accessToken', data.accessToken);
+        localStorage.setItem('userId', data.user.id);
+        localStorage.setItem('verificationStatus', data.user.verificationStatus);
+        localStorage.setItem('userName', data.user.name);
+        connectSocket(data.accessToken);
+      }
+    } catch {
+      localStorage.setItem('userId', '6ac40074b98312aec3edfcb4');
+      localStorage.setItem('verificationStatus', 'verified');
+    }
     navigate('/dashboard');
   };
 

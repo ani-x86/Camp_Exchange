@@ -11,6 +11,12 @@ export default defineConfig({
     },
   },
   server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+    },
     fs: {
       // Allow serving GIF assets from the Content directory above /client
       allow: ['..'],
