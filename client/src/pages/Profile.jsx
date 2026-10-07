@@ -11,11 +11,11 @@ import AddItemPanel from '../features/listing/AddItemPanel';
  * In production Phase 2, this will be wired to RTK Query / authSlice.
  */
 const INITIAL_PROFILE = {
-  name: 'Aarav Sharma',
-  email: 'aarav.sharma@college.edu',
-  mobile: '+91 98765 43210',
-  prn: '12210456',
-  branch: 'Computer Engineering',
+  name: 'Aniruddha Sanjay Udekar',
+  email: 'aniruddha.ude@gmail.com',
+  mobile: '+91 83295 53231',
+  prn: '241107039',
+  branch: 'Artifical Intelligence Machine Learning',
   year: '3rd Year (Sem 5)',
   address: 'Hostel Block B, Room 314',
   bio: 'CS student trading tech books, lab equipment, and desk accessories before semester break.',
@@ -293,10 +293,9 @@ export default function Profile() {
                       group relative w-full rounded-sm px-4 py-2.5
                       font-sans text-sm font-medium
                       transition-[background-color,transform] duration-150 ease-out
-                      ${
-                        !isDirty || saving
-                          ? 'cursor-not-allowed border border-clay bg-clay text-ink/40'
-                          : 'cursor-pointer bg-moss text-bone hover:bg-moss-hover active:scale-[0.97] active:duration-100'
+                      ${!isDirty || saving
+                        ? 'cursor-not-allowed border border-clay bg-clay text-ink/40'
+                        : 'cursor-pointer bg-moss text-bone hover:bg-moss-hover active:scale-[0.97] active:duration-100'
                       }
                     `}
                   >
@@ -337,10 +336,9 @@ export default function Profile() {
             className={`
               flex items-center gap-2 rounded-sm border border-moss bg-bone px-4 py-2.5
               font-sans text-sm font-medium text-ink shadow-sm
-              ${
-                toast.exiting
-                  ? 'animate-[toast-exit_150ms_ease-out_forwards]'
-                  : 'animate-[toast-enter_180ms_ease-out_forwards]'
+              ${toast.exiting
+                ? 'animate-[toast-exit_150ms_ease-out_forwards]'
+                : 'animate-[toast-enter_180ms_ease-out_forwards]'
               }
             `}
           >

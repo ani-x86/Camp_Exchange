@@ -38,7 +38,7 @@ export const uploadIdCard = async (req, res, next) => {
     let isMatched = false;
     
     try {
-      const ocrRes = await axios.post(`${ocrServiceUrl}/verify-id`, {
+      const ocrRes = await axios.post(new URL('/verify-id', ocrServiceUrl).toString(), {
         imageUrl: result.secure_url,
         prn: user.prn,
       });

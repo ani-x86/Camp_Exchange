@@ -22,6 +22,15 @@ import { initChatSocket } from './sockets/chatSocket.js';
 
 const app = express();
 
+app.use(async (_req, _res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ─── Webhook Route ────────────────────────────────────────────────────────────
 // CRITICAL: Must use express.raw() to preserve the raw body for signature verification.
 // This MUST come before app.use(express.json()).
@@ -89,4 +98,8 @@ const start = async () => {
   });
 };
 
-start();
+if (process.env.VERCEL !== '1') {
+  start();
+}
+
+export default app;
