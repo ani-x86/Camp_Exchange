@@ -81,7 +81,7 @@ Copy `.env.example` → `.env` in `client/`, `server/`, and `verification-servic
 
 ## Vercel deployment
 
-The root `vercel.json` configures three services: `client` serves `/`, `server` serves `/api/*` and `/socket.io/*`, and `verification-service` remains internal. The `server` service receives the verification service URL through the `VERIFICATION_SERVICE_URL` binding; do not set that variable manually in Vercel.
+The root `vercel.json` configures three services: `client` serves `/` and the SPA fallback, `server` serves `/api/*` and `/socket.io/*`, and `verification-service` remains internal. Frontend asset paths are routed to their actual files; other frontend paths use `index.html` so React Router can handle direct navigation. The `server` service receives the verification service URL through the `VERIFICATION_SERVICE_URL` binding; do not set that variable manually in Vercel.
 
 Configure the client build variables and backend secrets in Vercel for the appropriate services. The Socket.IO route is included because the client uses it, but the current Socket.IO server is initialized only by local HTTP startup. Live chat therefore needs a WebSocket-capable deployment/integration; the chat UI has a REST fallback.
 

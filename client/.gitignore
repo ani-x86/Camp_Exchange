@@ -13,6 +13,11 @@ dist-ssr
 *.local
 .env
 .env.*
+*.env
+*.env.*
+src/**/.env*
+src/**/firebase*.env*
+firebase*.env*
 !.env.example
 
 # Editor directories and files
