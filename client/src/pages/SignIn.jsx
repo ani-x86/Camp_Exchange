@@ -4,6 +4,7 @@ import AuthCard from '../components/auth/AuthCard';
 import GoogleAuthButton from '../components/auth/GoogleAuthButton';
 import FormField from '../components/auth/FormField';
 
+import { loginWithGoogle } from '../services/firebase';
 import { connectSocket } from '../features/chat/socket';
 
 /**
@@ -19,6 +20,7 @@ export default function SignIn() {
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const validate = () => {
     const newErrors = {};
@@ -58,27 +60,70 @@ export default function SignIn() {
     }
   };
 
-  /** Quick Demo Sign-In as Aarav Sharma (Verified Student) */
+  /** Firebase Google Sign-In */
   const handleGoogleAuth = async () => {
+    setGoogleLoading(true);
+    setErrors((prev) => ({ ...prev, google: null }));
+
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ collegeEmail: 'aarav.sharma@college.edu', password: 'CampX@demo2025' }),
-      });
-      const data = await res.json();
-      if (res.ok && data.accessToken) {
-        localStorage.setItem('accessToken', data.accessToken);
-        localStorage.setItem('userId', data.user.id);
-        localStorage.setItem('verificationStatus', data.user.verificationStatus);
-        localStorage.setItem('userName', data.user.name);
-        connectSocket(data.accessToken);
+      const user = await loginWithGoogle();
+      const idToken = await user.getIdToken();
+
+      // Store authenticated user session in localStorage
+      localStorage.setItem('accessToken', idToken);
+      localStorage.setItem('userId', user.uid);
+      localStorage.setItem('userName', user.displayName || user.email?.split('@')[0] || 'CampX User');
+      localStorage.setItem('userEmail', user.email || '');
+      if (user.photoURL) {
+        localStorage.setItem('userPhoto', user.photoURL);
       }
-    } catch {
-      localStorage.setItem('userId', '6ac40074b98312aec3edfcb4');
       localStorage.setItem('verificationStatus', 'verified');
+
+      // Attempt optional backend user sync/lookup
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            collegeEmail: user.email,
+            firebaseUid: user.uid,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok && data.accessToken) {
+          localStorage.setItem('accessToken', data.accessToken);
+          if (data.user?.id) localStorage.setItem('userId', data.user.id);
+          if (data.user?.verificationStatus) localStorage.setItem('verificationStatus', data.user.verificationStatus);
+          if (data.user?.name) localStorage.setItem('userName', data.user.name);
+          connectSocket(data.accessToken);
+        } else {
+          connectSocket(idToken);
+        }
+      } catch {
+        // Fallback to client-side Firebase session
+        connectSocket(idToken);
+      }
+
+      navigate('/dashboard');
+    } catch (err) {
+      // Ignore user-initiated popup cancellation
+      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+        return;
+      }
+
+      let errorMsg = 'Google sign-in failed. Please try again.';
+      if (err.code === 'auth/unauthorized-domain') {
+        errorMsg = 'This domain is not authorized in Firebase Console (Authentication > Settings > Authorized domains).';
+      } else if (err.code === 'auth/popup-blocked') {
+        errorMsg = 'Popup blocked by browser. Please allow popups for this site.';
+      } else if (err.message) {
+        errorMsg = err.message;
+      }
+
+      setErrors((prev) => ({ ...prev, google: errorMsg }));
+    } finally {
+      setGoogleLoading(false);
     }
-    navigate('/dashboard');
   };
 
   return (
@@ -99,7 +144,17 @@ export default function SignIn() {
     >
       <div className="relative">
         {/* Google OAuth — above the form per spec */}
-        <GoogleAuthButton onClick={handleGoogleAuth} />
+        <GoogleAuthButton
+          onClick={handleGoogleAuth}
+          loading={googleLoading}
+          disabled={submitting || googleLoading}
+        />
+
+        {errors.google && (
+          <p className="mt-2 text-center text-xs text-rust font-sans" role="alert">
+            {errors.google}
+          </p>
+        )}
 
         {/* "or" divider */}
         <div className="my-5 flex items-center gap-3">

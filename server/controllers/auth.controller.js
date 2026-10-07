@@ -1,45 +1,61 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import User from '../models/User.js';
-import OTP from '../models/OTP.js';
+import crypto from 'crypto';
 import { sendMail, otpTemplate } from '../config/mailer.js';
+import {
+  createUser, findUserById, getAuthRecordByEmail,
+} from '../src/db/repositories/users.js';
+import {
+  createOtp, findValidOtp, deleteOtp, incrementOtpAttempts,
+} from '../src/db/repositories/otps.js';
+import {
+  createRefreshToken, findValidRefreshToken, revokeRefreshToken,
+} from '../src/db/repositories/refreshTokens.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const generateOtp = () => String(Math.floor(100000 + Math.random() * 900000));
 
-const issueTokens = (user, res) => {
+/** Hash a value with SHA-256. Used for OTP codes and refresh tokens. */
+function hashValue(value) {
+  return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+function issueTokens(user, res) {
   const payload = {
-    id: user._id,
+    id: user.id,
     role: user.role,
-    verificationStatus: user.verificationStatus,
+    verificationStatus: user.verificationStatus ?? user.verification_status,
   };
 
   const accessToken = jwt.sign(payload, process.env.JWT_ACCESS_SECRET, {
     expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
   });
 
-  const refreshToken = jwt.sign(
-    { id: user._id },
-    process.env.JWT_REFRESH_SECRET,
-    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
-  );
+  const rawRefreshToken = crypto.randomBytes(40).toString('hex');
+  const refreshTokenHash = hashValue(rawRefreshToken);
 
-  res.cookie('refreshToken', refreshToken, {
+  // Cookie carries raw token; DB stores hash
+  res.cookie('refreshToken', rawRefreshToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 
+  // Persist hash asynchronously (non-blocking for response speed)
+  createRefreshToken(user.id, refreshTokenHash).catch((e) =>
+    console.error('[Auth] Failed to persist refresh token:', e.message)
+  );
+
   return accessToken;
-};
+}
 
 // ─── Controllers ──────────────────────────────────────────────────────────────
 
 /**
  * POST /api/auth/signup
- * Validates input, hashes password, sends OTP. Does NOT create the User yet.
+ * Hashes password, sends OTP. Does NOT create the User yet.
  * The User is created only after OTP is verified (verifyOtp).
  */
 export const signup = async (req, res, next) => {
@@ -58,7 +74,7 @@ export const signup = async (req, res, next) => {
   try {
     const email = collegeEmail.trim().toLowerCase();
 
-    const existing = await User.findOne({ collegeEmail: email });
+    const existing = await getAuthRecordByEmail(email);
     if (existing) {
       return res
         .status(409)
@@ -67,16 +83,12 @@ export const signup = async (req, res, next) => {
 
     const passwordHash = await bcrypt.hash(password, 12);
     const code = generateOtp();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
+    const codeHash = hashValue(code);
 
-    // Replace any existing signup OTP for this email (resend scenario)
-    await OTP.deleteMany({ email, purpose: 'signup' });
-
-    await OTP.create({
+    await createOtp({
       email,
-      code,
+      codeHash,
       purpose: 'signup',
-      expiresAt,
       tempData: { name: name.trim(), prn: prn.trim(), passwordHash },
     });
 
@@ -99,51 +111,45 @@ export const verifyOtp = async (req, res, next) => {
   }
 
   try {
-    const otp = await OTP.findOne({
-      email: email.trim().toLowerCase(),
-      purpose: 'signup',
-    }).select('+tempData');
+    const normalEmail = email.trim().toLowerCase();
+    const otp = await findValidOtp(normalEmail, 'signup');
 
     if (!otp) {
       return res
         .status(400)
-        .json({ error: 'No pending OTP for this email. Request a new one.' });
+        .json({ error: 'No valid OTP found for this email. Request a new one.' });
     }
 
-    if (new Date() > otp.expiresAt) {
-      await otp.deleteOne();
-      return res
-        .status(400)
-        .json({ error: 'OTP has expired. Go back and request a new one.' });
-    }
-
-    if (otp.code !== code.trim()) {
+    const codeHash = hashValue(code.trim());
+    if (otp.code_hash !== codeHash) {
+      await incrementOtpAttempts(otp.id);
       return res.status(400).json({ error: 'Incorrect code. Check your email and try again.' });
     }
 
-    const { name, prn, passwordHash } = otp.tempData;
+    const { name, prn, passwordHash } = otp.temp_data;
 
-    const user = await User.create({
+    const user = await createUser({
       name,
       prn,
-      collegeEmail: otp.email,
+      collegeEmail: normalEmail,
       passwordHash,
-      verificationStatus: 'pending',
+      campus: process.env.CAMPUS_NAME || 'ABC College',
     });
 
-    await otp.deleteOne();
+    await deleteOtp(otp.id);
 
     const accessToken = issueTokens(user, res);
 
     res.status(201).json({
       accessToken,
       user: {
-        id: user._id,
+        id: user.id,
         name: user.name,
         collegeEmail: user.collegeEmail,
         prn: user.prn,
         verificationStatus: user.verificationStatus,
         role: user.role,
+        verified: user.verified,
       },
     });
   } catch (err) {
@@ -161,32 +167,32 @@ export const login = async (req, res, next) => {
   }
 
   try {
-    const user = await User.findOne({
-      collegeEmail: collegeEmail.trim().toLowerCase(),
-    }).select('+passwordHash');
+    const auth = await getAuthRecordByEmail(collegeEmail.trim().toLowerCase());
 
-    if (!user) {
+    if (!auth) {
       return res
         .status(401)
         .json({ error: 'No account found with this email. Sign up first.' });
     }
 
-    const match = await bcrypt.compare(password, user.passwordHash);
+    const match = await bcrypt.compare(password, auth.password_hash);
     if (!match) {
       return res.status(401).json({ error: 'Incorrect password.' });
     }
 
+    const user = await findUserById(auth.id);
     const accessToken = issueTokens(user, res);
 
     res.json({
       accessToken,
       user: {
-        id: user._id,
+        id: user.id,
         name: user.name,
         collegeEmail: user.collegeEmail,
         prn: user.prn,
         verificationStatus: user.verificationStatus,
         role: user.role,
+        verified: user.verified,
       },
     });
   } catch (err) {
@@ -199,38 +205,46 @@ export const login = async (req, res, next) => {
  * Reads the httpOnly refresh cookie and issues a new access token.
  */
 export const refresh = async (req, res, next) => {
-  const token = req.cookies?.refreshToken;
-  if (!token) {
-    return res
-      .status(401)
-      .json({ error: 'No refresh token. Sign in again.' });
+  const rawToken = req.cookies?.refreshToken;
+  if (!rawToken) {
+    return res.status(401).json({ error: 'No refresh token. Sign in again.' });
   }
 
   try {
-    const payload = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+    const tokenHash = hashValue(rawToken);
+    const stored = await findValidRefreshToken(tokenHash);
 
-    const user = await User.findById(payload.id);
+    if (!stored) {
+      return res.status(401).json({ error: 'Refresh token expired or revoked. Sign in again.' });
+    }
+
+    const user = await findUserById(stored.user_id);
     if (!user) {
       return res.status(401).json({ error: 'Account not found. Sign in again.' });
     }
 
     const accessToken = jwt.sign(
-      { id: user._id, role: user.role, verificationStatus: user.verificationStatus },
+      { id: user.id, role: user.role, verificationStatus: user.verificationStatus },
       process.env.JWT_ACCESS_SECRET,
       { expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m' }
     );
 
     res.json({ accessToken });
-  } catch {
-    return res.status(401).json({ error: 'Refresh token expired or invalid. Sign in again.' });
+  } catch (err) {
+    next(err);
   }
 };
 
 /**
  * POST /api/auth/logout
- * Clears the refresh cookie.
+ * Revokes the refresh token hash and clears the cookie.
  */
-export const logout = (_req, res) => {
+export const logout = async (req, res) => {
+  const rawToken = req.cookies?.refreshToken;
+  if (rawToken) {
+    const tokenHash = hashValue(rawToken);
+    await revokeRefreshToken(tokenHash).catch(() => {});
+  }
   res.clearCookie('refreshToken', { httpOnly: true, sameSite: 'lax' });
   res.json({ message: 'Signed out.' });
 };

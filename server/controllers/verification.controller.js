@@ -1,6 +1,6 @@
 import axios from 'axios';
 import cloudinary from '../config/cloudinary.js';
-import User from '../models/User.js';
+import { findUserById, setVerificationStatus } from '../src/db/repositories/users.js';
 
 /**
  * POST /api/verification/upload
@@ -15,50 +15,52 @@ export const uploadIdCard = async (req, res, next) => {
   const userId = req.user.id;
 
   try {
-    const user = await User.findById(userId);
+    const user = await findUserById(userId);
     if (!user) return res.status(404).json({ error: 'User not found.' });
 
     if (user.verificationStatus === 'verified') {
       return res.status(400).json({ error: 'You are already verified.' });
     }
 
-    // 1. Upload to Cloudinary directly from buffer
-    // Type: private ensures the image is not accessible via public URL
+    // 1. Upload to Cloudinary (private type — no public URL)
     const b64 = Buffer.from(req.file.buffer).toString('base64');
     const dataURI = `data:${req.file.mimetype};base64,${b64}`;
-    
+
     const result = await cloudinary.uploader.upload(dataURI, {
-      folder: 'campx/id_cards',
+      folder: process.env.CLOUDINARY_ID_CARD_FOLDER || 'campx/id_cards',
       type: 'private',
     });
 
-    // 2. Call FastAPI Verification Service (Phase 0 spec)
-    // Send the Cloudinary URL and PRN for OCR matching
+    // 2. Call FastAPI Verification Service
     const ocrServiceUrl = process.env.VERIFICATION_SERVICE_URL || 'http://localhost:8000';
+    let confidence = 0;
     let isMatched = false;
-    
+
     try {
-      const ocrRes = await axios.post(new URL('/verify-id', ocrServiceUrl).toString(), {
-        imageUrl: result.secure_url,
-        prn: user.prn,
-      });
+      const ocrRes = await axios.post(
+        new URL('/verify-id', ocrServiceUrl).toString(),
+        { imageUrl: result.secure_url, prn: user.prn }
+      );
       isMatched = ocrRes.data.isMatched;
+      confidence = ocrRes.data.confidence ?? (isMatched ? 1 : 0);
     } catch (error) {
       console.error('OCR Service Error:', error.message);
-      // Fallback: If OCR fails or is down, put into pending_review for admin
-      isMatched = false;
+      // Fallback: put into pending_review for admin manual review
     }
 
-    // 3. Update User
-    user.idCardImageUrl = result.secure_url;
-    user.verificationStatus = isMatched ? 'verified' : 'pending_review';
-    await user.save();
+    // 3. Update user — store Cloudinary public ID, never the signed URL
+    const newStatus = isMatched ? 'verified' : 'pending_review';
+    const updated = await setVerificationStatus(userId, newStatus, {
+      confidence,
+      verifiedAt: isMatched ? new Date() : undefined,
+      idCardImagePublicId: result.public_id,
+    });
 
     res.json({
       message: isMatched
         ? 'ID verified successfully.'
         : 'ID card uploaded. Awaiting manual review.',
-      status: user.verificationStatus,
+      status: updated.verificationStatus,
     });
   } catch (err) {
     next(err);
@@ -70,10 +72,10 @@ export const uploadIdCard = async (req, res, next) => {
  */
 export const getStatus = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await findUserById(req.user.id);
     if (!user) return res.status(404).json({ error: 'User not found.' });
 
-    res.json({ status: user.verificationStatus });
+    res.json({ status: user.verificationStatus, verified: user.verified });
   } catch (err) {
     next(err);
   }

@@ -3,10 +3,9 @@ import { createServer } from 'http';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import mongoose from 'mongoose';
 import { Server as SocketServer } from 'socket.io';
 
-import { connectDB, isConnected } from './config/db.js';
+import { connectDB, getPool } from './config/db.js';
 import errorHandler from './middleware/errorHandler.js';
 
 import authRoutes from './routes/auth.routes.js';
@@ -22,9 +21,10 @@ import { initChatSocket } from './sockets/chatSocket.js';
 
 const app = express();
 
+// ─── Ensure DB pool is ready on first request ─────────────────────────────────
 app.use(async (_req, _res, next) => {
   try {
-    await connectDB();
+    getPool(); // throws if DATABASE_URL missing
     next();
   } catch (err) {
     next(err);
@@ -46,12 +46,20 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
-app.get('/api/health', (_req, res) => {
+app.get('/api/health', async (_req, res) => {
+  let dbStatus = 'unknown';
+  try {
+    const pool = getPool();
+    await pool.query('SELECT 1');
+    dbStatus = 'connected';
+  } catch {
+    dbStatus = 'disconnected';
+  }
   res.json({
     status: 'ok',
     service: 'campx-backend',
     phase: 5,
-    db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    db: dbStatus,
     timestamp: new Date().toISOString(),
   });
 });
@@ -60,7 +68,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/verification', verificationRoutes);
 app.use('/api/products', productRoutes);
-app.use('/api/cart', cartRoutes); // Cart logic is client-side, but placeholder route kept
+app.use('/api/cart', cartRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/conversations', conversationRoutes);
@@ -80,7 +88,6 @@ const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 const start = async () => {
   await connectDB();
 
-  // Wrap Express in an HTTP server so Socket.IO shares the same port
   const httpServer = createServer(app);
 
   const io = new SocketServer(httpServer, {

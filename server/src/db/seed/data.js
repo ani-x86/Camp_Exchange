@@ -1,9 +1,9 @@
 /**
- * CampX — Seed data
+ * CampX — Seed data for PostgreSQL.
  * database.md §7
  *
- * Realistic demo data for development. All passwords are hashed versions of
- * the DEMO_PASSWORD printed to the console on every seed run.
+ * All passwords use DEMO_PASSWORD (printed to console on every seed run).
+ * Image URLs use placeholder Cloudinary-style URLs from campx-demo cloud.
  */
 
 export const DEMO_PASSWORD = 'CampX@demo2025';
@@ -11,7 +11,6 @@ export const DEMO_PASSWORD = 'CampX@demo2025';
 // ─── Users ────────────────────────────────────────────────────────────────────
 
 export const SEED_USERS = [
-  // Admin
   {
     name: 'Admin CampX',
     collegeEmail: 'admin@college.edu',
@@ -23,7 +22,6 @@ export const SEED_USERS = [
     campus: 'ABC College',
     campusAddress: 'Admin Block, Room 101',
   },
-
   // Aarav Sharma — the verified reference student (from listing.md / Profile.jsx)
   {
     name: 'Aarav Sharma',
@@ -37,8 +35,6 @@ export const SEED_USERS = [
     campusAddress: 'Hostel Block B, Room 314',
     bio: 'CS student trading tech books, lab equipment, and desk accessories before semester break.',
   },
-
-  // Pending review student
   {
     name: 'Priya Nair',
     collegeEmail: 'priya.nair@college.edu',
@@ -49,8 +45,6 @@ export const SEED_USERS = [
     academicYear: '2nd Year (Sem 4)',
     campus: 'ABC College',
   },
-
-  // Pending (just registered)
   {
     name: 'Rohan Mehta',
     collegeEmail: 'rohan.mehta@college.edu',
@@ -61,8 +55,6 @@ export const SEED_USERS = [
     academicYear: '1st Year (Sem 2)',
     campus: 'ABC College',
   },
-
-  // Rejected
   {
     name: 'Sneha Kulkarni',
     collegeEmail: 'sneha.kulkarni@college.edu',
@@ -73,8 +65,6 @@ export const SEED_USERS = [
     academicYear: '4th Year (Sem 7)',
     campus: 'ABC College',
   },
-
-  // Additional verified students (sellers / buyers)
   {
     name: 'Arjun Desai',
     collegeEmail: 'arjun.desai@college.edu',
@@ -107,9 +97,8 @@ export const SEED_USERS = [
   },
 ];
 
-// ─── Products (24 across 8 categories, 3 statuses) ───────────────────────────
+// ─── Products ─────────────────────────────────────────────────────────────────
 
-// Placeholder Cloudinary-style URLs (real uploads would replace these)
 function cloudImg(filename) {
   return {
     url: `https://res.cloudinary.com/campx-demo/image/upload/v1700000000/campx/products/${filename}.jpg`,
@@ -120,7 +109,7 @@ function cloudImg(filename) {
 export const SEED_PRODUCTS = [
   // books (6)
   { title: 'Engineering Mathematics Vol. 3', category: 'books', condition: 'good', price: 180, description: 'Sem 5 maths textbook by H.K. Dass. Minor highlighting on ch. 4–6 only.', images: [cloudImg('books_math_vol3'), cloudImg('books_math_vol3_b')], status: 'available' },
-  { title: 'Data Structures using C — Reema Thareja', category: 'books', condition: 'like-new', price: 220, description: 'Barely used. All pages intact, no notes.', images: [cloudImg('books_ds_thareja')], status: 'available' },
+  { title: 'Data Structures using C — Reema Thareja', category: 'books', condition: 'like-new', price: 220, description: 'Barely used. All pages intact, no notes inside.', images: [cloudImg('books_ds_thareja')], status: 'available' },
   { title: 'VLSI Design Textbook (3rd Edition)', category: 'books', condition: 'good', price: 350, description: 'Neil Weste CMOS VLSI. Good condition, sticky tabs inside.', images: [cloudImg('books_vlsi')], status: 'sold' },
   { title: 'Signals and Systems — Oppenheim', category: 'books', condition: 'fair', price: 120, description: 'Worn spine but all content readable. Great for EXTC sem 4.', images: [cloudImg('books_signals')], status: 'available' },
   { title: 'Operating Systems Concepts (Dinosaur)', category: 'books', condition: 'like-new', price: 290, description: 'Silberschatz 10th ed. Used for one exam only.', images: [cloudImg('books_os')], status: 'available' },

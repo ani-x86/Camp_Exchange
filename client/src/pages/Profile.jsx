@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import ProfilePhoto from '../components/profile/ProfilePhoto';
 import ProfileField from '../components/profile/ProfileField';
 import BioBox from '../components/profile/BioBox';
 import SellSection from '../features/listing/SellSection';
 import AddItemPanel from '../features/listing/AddItemPanel';
+import { logoutUser } from '../services/firebase';
 
 /**
  * Initial mock profile data representing a verified college student.
@@ -37,11 +38,24 @@ const INITIAL_PROFILE = {
  *  - Toast confirmation with asymmetric slide-up/fade enter and fade-only exit.
  */
 export default function Profile() {
+  const navigate = useNavigate();
   const location = useLocation();
   const isAddItem = location.pathname === '/profile/add-item';
 
-  const [profile, setProfile] = useState(INITIAL_PROFILE);
-  const [draftProfile, setDraftProfile] = useState(INITIAL_PROFILE);
+  const getInitialProfile = () => {
+    const savedName = localStorage.getItem('userName');
+    const savedEmail = localStorage.getItem('userEmail');
+    const savedPhoto = localStorage.getItem('userPhoto');
+    return {
+      ...INITIAL_PROFILE,
+      ...(savedName ? { name: savedName } : {}),
+      ...(savedEmail ? { email: savedEmail } : {}),
+      ...(savedPhoto ? { photoUrl: savedPhoto } : {}),
+    };
+  };
+
+  const [profile, setProfile] = useState(getInitialProfile);
+  const [draftProfile, setDraftProfile] = useState(getInitialProfile);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null); // { message, exiting: boolean } | null
 
@@ -88,6 +102,21 @@ export default function Profile() {
     } catch {
       setSaving(false);
     }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch {
+      // ignore
+    }
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('userName');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('userPhoto');
+    localStorage.removeItem('verificationStatus');
+    navigate('/signin');
   };
 
   const validateEmail = (val) => {
@@ -316,6 +345,22 @@ export default function Profile() {
                         aria-hidden="true"
                       />
                     )}
+                  </button>
+
+                  {/* Sign out button */}
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="
+                      mt-3 w-full rounded-sm border border-clay bg-bone px-4 py-2
+                      font-sans text-xs font-medium text-rust
+                      transition-[border-color,background-color] duration-120 ease-out
+                      hover:border-rust hover:bg-rust/5
+                      active:scale-[0.98]
+                      cursor-pointer
+                    "
+                  >
+                    Sign out
                   </button>
                 </div>
               </>

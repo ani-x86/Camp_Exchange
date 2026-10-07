@@ -10,9 +10,11 @@
  */
 
 import jwt from 'jsonwebtoken';
-import mongoose from 'mongoose';
-import Conversation from '../models/Conversation.js';
-import { sendMessage, markRead, toConversationDTO } from '../services/chatService.js';
+import {
+  sendMessage,
+  markRead,
+  findRawConversationById,
+} from '../services/chatService.js';
 
 // Simple per-user in-memory rate limit: 20 messages per 10 seconds
 const rateLimitMap = new Map(); // userId → { count, resetAt }
@@ -64,19 +66,19 @@ export function initChatSocket(io) {
 
     // ── conversation:join ─────────────────────────────────────────────────────
     socket.on('conversation:join', async ({ conversationId }) => {
-      if (!mongoose.isValidObjectId(conversationId)) {
+      if (!conversationId) {
         return socket.emit('error', { code: 'INVALID_ID', message: 'Invalid conversation ID.' });
       }
 
       try {
-        const conv = await Conversation.findById(conversationId).lean();
+        const conv = await findRawConversationById(conversationId);
         if (!conv) {
           return socket.emit('error', { code: 'NOT_FOUND', message: 'Conversation not found.' });
         }
 
         const isMember =
-          conv.buyerId.toString() === userId ||
-          conv.sellerId.toString() === userId;
+          String(conv.buyer_id) === String(userId) ||
+          String(conv.seller_id) === String(userId);
 
         if (!isMember) {
           return socket.emit('error', { code: 'FORBIDDEN', message: 'Access denied.' });
@@ -109,12 +111,16 @@ export function initChatSocket(io) {
         });
 
         // Update inbox / badge for both participants
-        const conv = await Conversation.findById(conversationId).lean();
+        const conv = await findRawConversationById(conversationId);
         if (conv) {
-          const buyerDto  = { conversationId, lastMessage: conv.lastMessage, unread: conv.unread.buyer };
-          const sellerDto = { conversationId, lastMessage: conv.lastMessage, unread: conv.unread.seller };
-          io.to(`user:${conv.buyerId.toString()}`).emit('conversation:updated', buyerDto);
-          io.to(`user:${conv.sellerId.toString()}`).emit('conversation:updated', sellerDto);
+          const lastMsg = {
+            body: conv.last_message_body,
+            createdAt: conv.last_message_at,
+          };
+          const buyerDto  = { conversationId, lastMessage: lastMsg, unread: conv.unread_buyer };
+          const sellerDto = { conversationId, lastMessage: lastMsg, unread: conv.unread_seller };
+          io.to(`user:${String(conv.buyer_id)}`).emit('conversation:updated', buyerDto);
+          io.to(`user:${String(conv.seller_id)}`).emit('conversation:updated', sellerDto);
         }
       } catch (err) {
         socket.emit('error', {

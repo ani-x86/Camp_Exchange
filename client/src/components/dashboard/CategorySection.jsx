@@ -1,52 +1,44 @@
 import ProductCard from './ProductCard';
+import SectionHeader from './SectionHeader';
 
 /**
- * CategorySection — one repeating section in the pinboard grid.
+ * CategorySection — one category section on the CampX dashboard.
  *
- * design.md §3: asymmetric card sizing, not forced-uniform tiles.
- * Implemented with CSS `columns` layout (not CSS Grid) so cards
- * flow naturally at different heights — `break-inside-avoid` keeps
- * each card intact.
- *
- * Props:
- *  - name        (string)    Display label, e.g. "Books"
- *  - products    (array)     Product objects for this category
- *  - seeAllHref  (string?)   URL for "See all" link
+ * Spec §3.2, §3.5, §4:
+ *  - Responsive CSS grid with items-stretch:
+ *      >= 1024px: 4 columns
+ *      768px - 1023px: 3 columns
+ *      < 768px: 2 columns
+ *  - Cards in a row share identical height.
+ *  - Shows up to 4 items on the dashboard (remainder accessible via "See all →").
+ *  - Completely hidden if products array is empty.
+ *  - Uses SectionHeader with title, "See all →", and full-width container divider.
  */
 export default function CategorySection({ name, products = [], seeAllHref }) {
+  if (!products || products.length === 0) {
+    return null;
+  }
+
+  // Cap at 4 items on the dashboard as specified in §3.7
+  const displayProducts = products.slice(0, 4);
+
   return (
-    <section className="py-6">
-      {/* Section header — left-aligned, General Sans Semibold */}
-      <div className="mb-4 flex items-baseline justify-between">
-        <h2 className="font-heading text-lg font-semibold text-ink">
-          {name}
-        </h2>
-        {seeAllHref && (
-          <a
-            href={seeAllHref}
-            className="font-sans text-sm text-moss hover:underline"
-          >
-            See all →
-          </a>
-        )}
+    <section className="py-8">
+      <SectionHeader title={name} seeAllHref={seeAllHref} />
+
+      <div
+        className="
+          grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4
+          gap-4 lg:gap-5 items-stretch
+        "
+      >
+        {displayProducts.map((product) => (
+          <ProductCard
+            key={product.id || product._id || product.title}
+            product={product}
+          />
+        ))}
       </div>
-
-      {/* Hairline divider */}
-      <div className="mb-4 border-t border-clay" />
-
-      {products.length === 0 ? (
-        /* Empty state — section always rendered, never hidden */
-        <p className="font-sans text-sm text-ink/50">
-          No {name.toLowerCase()} listings yet.
-        </p>
-      ) : (
-        /* Pinboard grid — CSS columns for natural asymmetric heights */
-        <div className="columns-2 gap-3 sm:columns-3 lg:columns-4">
-          {products.map((product) => (
-            <ProductCard key={product._id} product={product} />
-          ))}
-        </div>
-      )}
     </section>
   );
 }

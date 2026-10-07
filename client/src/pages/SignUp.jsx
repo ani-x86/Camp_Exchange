@@ -6,6 +6,8 @@ import FormField from '../components/auth/FormField';
 import OtpInput from '../components/auth/OtpInput';
 import AuthSuccessOverlay from '../components/auth/AuthSuccessOverlay';
 import { getAuthGifs } from '../services/authGifs';
+import { loginWithGoogle } from '../services/firebase';
+import { connectSocket } from '../features/chat/socket';
 
 /**
  * SignUp page — two-step flow:
@@ -28,6 +30,7 @@ export default function SignUp() {
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   // ── Step 2: OTP verification ──
   const [step, setStep] = useState(1); // 1 = form, 2 = OTP
@@ -121,13 +124,79 @@ export default function SignUp() {
     }
   };
 
-  /** Stub — wire to actual Google OAuth redirect when backend is ready */
-  const handleGoogleAuth = () => {
-    console.log('Google OAuth flow triggered');
+  /** Firebase Google Sign-In / Sign-Up */
+  const handleGoogleAuth = async () => {
+    setGoogleLoading(true);
+    setErrors((prev) => ({ ...prev, google: null }));
+
+    try {
+      const user = await loginWithGoogle();
+      const idToken = await user.getIdToken();
+
+      // Store authenticated user session in localStorage
+      localStorage.setItem('accessToken', idToken);
+      localStorage.setItem('userId', user.uid);
+      localStorage.setItem('userName', user.displayName || user.email?.split('@')[0] || 'CampX User');
+      localStorage.setItem('userEmail', user.email || '');
+      if (user.photoURL) {
+        localStorage.setItem('userPhoto', user.photoURL);
+      }
+      localStorage.setItem('verificationStatus', 'verified');
+
+      // Attempt optional backend user sync/lookup
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            collegeEmail: user.email,
+            firebaseUid: user.uid,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok && data.accessToken) {
+          localStorage.setItem('accessToken', data.accessToken);
+          if (data.user?.id) localStorage.setItem('userId', data.user.id);
+          if (data.user?.verificationStatus) localStorage.setItem('verificationStatus', data.user.verificationStatus);
+          if (data.user?.name) localStorage.setItem('userName', data.user.name);
+          connectSocket(data.accessToken);
+        } else {
+          connectSocket(idToken);
+        }
+      } catch {
+        // Fallback to client-side Firebase session
+        connectSocket(idToken);
+      }
+
+      setShowSuccess(true);
+    } catch (err) {
+      // Ignore user-initiated popup cancellation
+      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+        return;
+      }
+
+      let errorMsg = 'Google sign-up failed. Please try again.';
+      if (err.code === 'auth/unauthorized-domain') {
+        errorMsg = 'This domain is not authorized in Firebase Console (Authentication > Settings > Authorized domains).';
+      } else if (err.code === 'auth/popup-blocked') {
+        errorMsg = 'Popup blocked by browser. Please allow popups for this site.';
+      } else if (err.message) {
+        errorMsg = err.message;
+      }
+
+      setErrors((prev) => ({ ...prev, google: errorMsg }));
+    } finally {
+      setGoogleLoading(false);
+    }
   };
 
   const handleSuccessComplete = () => {
-    navigate('/signin');
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      navigate('/dashboard');
+    } else {
+      navigate('/signin');
+    }
   };
 
   // ── Dynamic card title/subtitle based on step ──
@@ -160,7 +229,18 @@ export default function SignUp() {
         {step === 1 && (
           <>
             {/* Google OAuth — above the form per spec */}
-            <GoogleAuthButton onClick={handleGoogleAuth} />
+            <GoogleAuthButton
+              onClick={handleGoogleAuth}
+              loading={googleLoading}
+              disabled={submitting || googleLoading}
+              text="Continue with Google"
+            />
+
+            {errors.google && (
+              <p className="mt-2 text-center text-xs text-rust font-sans" role="alert">
+                {errors.google}
+              </p>
+            )}
 
             {/* "or" divider */}
             <div className="my-5 flex items-center gap-3">

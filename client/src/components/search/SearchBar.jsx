@@ -154,7 +154,7 @@ export default function SearchBar({ onSearch }) {
           type="button"
           onClick={handleOpen}
           aria-label="Search"
-          className="group relative flex flex-col items-center gap-0.5 p-2 cursor-pointer"
+          className="group relative flex min-h-[40px] min-w-[40px] flex-col items-center justify-center p-2 cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-moss focus-visible:outline-offset-2"
         >
           {/* Icon tilts -6° on hover, 120ms (design.md §5) */}
           <span

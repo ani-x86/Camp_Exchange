@@ -1,14 +1,15 @@
-import User from '../models/User.js';
-import Product from '../models/Product.js';
+import {
+  getPendingReviewUsers,
+  setVerificationStatus,
+  findUserById,
+  countUsers,
+} from '../src/db/repositories/users.js';
+import { countProducts } from '../src/db/repositories/products.js';
 import { sendMail, verificationStatusTemplate } from '../config/mailer.js';
 
 export const getPendingVerifications = async (req, res, next) => {
   try {
-    // We explicitly select idCardImageUrl here since it's select:false by default
-    const users = await User.find({ verificationStatus: 'pending_review' })
-      .select('+idCardImageUrl -passwordHash')
-      .sort({ createdAt: 1 });
-
+    const users = await getPendingReviewUsers();
     res.json({ users });
   } catch (err) {
     next(err);
@@ -24,19 +25,16 @@ export const reviewVerification = async (req, res, next) => {
   }
 
   try {
-    const user = await User.findById(id);
+    const user = await findUserById(id);
     if (!user) return res.status(404).json({ error: 'User not found.' });
 
     const newStatus = action === 'approve' ? 'verified' : 'rejected';
-    user.verificationStatus = newStatus;
-    
-    // If rejected, remove the invalid ID card
-    if (newStatus === 'rejected') {
-      user.idCardImageUrl = undefined;
-    }
 
-    await user.save();
-    
+    await setVerificationStatus(id, newStatus, {
+      verifiedAt: action === 'approve' ? new Date() : null,
+      idCardImagePublicId: action === 'reject' ? null : undefined,
+    });
+
     // Notify user
     await sendMail(
       user.collegeEmail,
@@ -53,10 +51,10 @@ export const reviewVerification = async (req, res, next) => {
 export const getDashboardStats = async (req, res, next) => {
   try {
     const [totalUsers, verifiedUsers, totalProducts, soldProducts] = await Promise.all([
-      User.countDocuments(),
-      User.countDocuments({ verificationStatus: 'verified' }),
-      Product.countDocuments(),
-      Product.countDocuments({ status: 'sold' }),
+      countUsers(),
+      countUsers({ verificationStatus: 'verified' }),
+      countProducts(),
+      countProducts({ status: 'sold' }),
     ]);
 
     res.json({
