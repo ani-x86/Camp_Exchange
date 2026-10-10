@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import SignIn from './pages/SignIn';
-import SignUp from './pages/SignUp';
 import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
 import Cart from './pages/Cart';
@@ -21,7 +20,7 @@ export default function App() {
     <Routes>
       <Route path="/"            element={<Navigate to="/dashboard" replace />} />
       <Route path="/signin"      element={<SignIn />} />
-      <Route path="/signup"      element={<SignUp />} />
+      <Route path="/signup"      element={<Navigate to="/signin" replace />} />
       <Route path="/dashboard"   element={<Dashboard />} />
       <Route path="/product/:id" element={<ProductDetail />} />
       <Route path="/products/:id" element={<ProductDetail />} />

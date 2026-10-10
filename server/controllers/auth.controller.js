@@ -3,8 +3,10 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { sendMail, otpTemplate } from '../config/mailer.js';
 import {
-  createUser, findUserById, getAuthRecordByEmail,
+  createUserFromRoster, findUserById, findUserByPrn,
+  getAuthRecordByEmail, getStudentByEmail, getStudentByPrn,
 } from '../src/db/repositories/users.js';
+import { verifyFirebaseIdToken } from '../config/firebaseAdmin.js';
 import {
   createOtp, findValidOtp, deleteOtp, incrementOtpAttempts,
 } from '../src/db/repositories/otps.js';
@@ -61,27 +63,39 @@ function issueTokens(user, res) {
 export const signup = async (req, res, next) => {
   const { name, prn, collegeEmail, password } = req.body;
 
-  if (!name?.trim() || !prn?.trim() || !collegeEmail?.trim() || !password) {
+  if (
+    typeof name !== 'string' || !name.trim()
+    || typeof prn !== 'string' || !prn.trim()
+    || typeof collegeEmail !== 'string' || !collegeEmail.trim()
+    || typeof password !== 'string' || !password
+  ) {
     return res
       .status(400)
       .json({ error: 'Name, PRN, college email, and password are required.' });
   }
 
-  if (password.length < 8) {
-    return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+  if (password.length < 8 || Buffer.byteLength(password, 'utf8') > 72) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters and no more than 72 bytes.' });
   }
 
   try {
     const email = collegeEmail.trim().toLowerCase();
+    const student = await getStudentByPrn(prn.trim());
+    const studentCredentialsMatch = student
+      && student.college_email === email
+      && await bcrypt.compare(password, student.password_hash);
 
-    const existing = await getAuthRecordByEmail(email);
-    if (existing) {
-      return res
-        .status(409)
-        .json({ error: 'An account with this email already exists. Sign in instead.' });
+    if (!studentCredentialsMatch) {
+      return res.status(401).json({ error: 'Student credentials were not recognized.' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    const existing = await getAuthRecordByEmail(email);
+    if (existing || await findUserByPrn(student.prn)) {
+      return res
+        .status(409)
+        .json({ error: 'An account for this PRN already exists. Continue to sign in.' });
+    }
+
     const code = generateOtp();
     const codeHash = hashValue(code);
 
@@ -89,10 +103,10 @@ export const signup = async (req, res, next) => {
       email,
       codeHash,
       purpose: 'signup',
-      tempData: { name: name.trim(), prn: prn.trim(), passwordHash },
+      tempData: { name: student.name, prn: student.prn },
     });
 
-    await sendMail(email, 'Your CampX signup code', otpTemplate(code));
+    await sendMail(student.college_email, 'Your CampX signup code', otpTemplate(code));
 
     res.json({ message: 'OTP sent to your college email. Enter it to complete signup.' });
   } catch (err) {
@@ -126,15 +140,12 @@ export const verifyOtp = async (req, res, next) => {
       return res.status(400).json({ error: 'Incorrect code. Check your email and try again.' });
     }
 
-    const { name, prn, passwordHash } = otp.temp_data;
+    const student = await getStudentByPrn(otp.temp_data.prn);
+    if (!student || student.college_email !== normalEmail) {
+      return res.status(400).json({ error: 'Student roster record not found. Restart signup.' });
+    }
 
-    const user = await createUser({
-      name,
-      prn,
-      collegeEmail: normalEmail,
-      passwordHash,
-      campus: process.env.CAMPUS_NAME || 'ABC College',
-    });
+    const user = await createUserFromRoster(student);
 
     await deleteOtp(otp.id);
 
@@ -161,26 +172,23 @@ export const verifyOtp = async (req, res, next) => {
  * POST /api/auth/login
  */
 export const login = async (req, res, next) => {
-  const { collegeEmail, password } = req.body;
-  if (!collegeEmail?.trim() || !password) {
-    return res.status(400).json({ error: 'College email and password are required.' });
+  const { prn, password } = req.body;
+  if (typeof prn !== 'string' || !prn.trim() || typeof password !== 'string' || !password) {
+    return res.status(400).json({ error: 'PRN and password are required.' });
+  }
+  if (Buffer.byteLength(password, 'utf8') > 72) {
+    return res.status(400).json({ error: 'Password exceeds the supported length.' });
   }
 
   try {
-    const auth = await getAuthRecordByEmail(collegeEmail.trim().toLowerCase());
-
-    if (!auth) {
-      return res
-        .status(401)
-        .json({ error: 'No account found with this email. Sign up first.' });
-    }
-
-    const match = await bcrypt.compare(password, auth.password_hash);
+    const student = await getStudentByPrn(prn);
+    const match = student && await bcrypt.compare(password, student.password_hash);
     if (!match) {
-      return res.status(401).json({ error: 'Incorrect password.' });
+      return res.status(401).json({ error: 'Invalid PRN or password.' });
     }
 
-    const user = await findUserById(auth.id);
+    const user = await findUserByPrn(student.prn)
+      || await createUserFromRoster(student);
     const accessToken = issueTokens(user, res);
 
     res.json({
@@ -197,6 +205,62 @@ export const login = async (req, res, next) => {
     });
   } catch (err) {
     next(err);
+  }
+};
+
+/**
+ * POST /api/auth/google
+ * Verifies Firebase's ID token, then requires its verified email to match
+ * a student in the imported roster before issuing a CampX session.
+ */
+export const googleLogin = async (req, res, next) => {
+  const { idToken } = req.body;
+  if (typeof idToken !== 'string' || !idToken.trim()) {
+    return res.status(400).json({ error: 'A Firebase ID token is required.' });
+  }
+
+  try {
+    let claims;
+    try {
+      claims = await verifyFirebaseIdToken(idToken.trim());
+    } catch (error) {
+      if ([
+        'auth/argument-error',
+        'auth/id-token-expired',
+        'auth/invalid-id-token',
+      ].includes(error.code)) {
+        return res.status(401).json({ error: 'Google sign-in session is invalid or expired.' });
+      }
+      throw error;
+    }
+
+    if (claims.email_verified !== true || typeof claims.email !== 'string') {
+      return res.status(401).json({ error: 'Use a verified Google email for student access.' });
+    }
+
+    const student = await getStudentByEmail(claims.email);
+    if (!student) {
+      return res.status(403).json({ error: 'This Google email is not in the student roster.' });
+    }
+
+    const user = await findUserByPrn(student.prn)
+      || await createUserFromRoster(student);
+    const accessToken = issueTokens(user, res);
+
+    res.json({
+      accessToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        collegeEmail: user.collegeEmail,
+        prn: user.prn,
+        verificationStatus: user.verificationStatus,
+        role: user.role,
+        verified: user.verified,
+      },
+    });
+  } catch (error) {
+    next(error);
   }
 };
 

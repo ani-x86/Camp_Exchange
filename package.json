@@ -4,12 +4,14 @@
   "private": true,
   "scripts": {
     "migrate": "npm --prefix server run migrate",
+    "import:students": "npm --prefix server run students:import",
     "seed": "npm --prefix server run seed",
     "seed:reset": "npm --prefix server run seed:reset",
     "dev:server": "npm --prefix server run dev",
     "dev:client": "npm --prefix client run dev"
   },
   "dependencies": {
+    "cloudinary": "^2.11.0",
     "firebase": "^12.19.0",
     "nodemailer": "^10.0.15"
   }

@@ -107,7 +107,7 @@ async function truncateAll() {
   await getPool().query(`
     TRUNCATE TABLE
       messages, conversations, reports, wishlists,
-      refresh_tokens, transactions, products, otps, users
+      refresh_tokens, transactions, products, otps, students, users
     RESTART IDENTITY CASCADE
   `);
 }

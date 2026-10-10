@@ -109,6 +109,61 @@ export async function createUser({ name, collegeEmail, passwordHash, prn, campus
   }
 }
 
+export async function getStudentByPrn(prn) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT prn, name, college_email, password_hash, roll_number
+     FROM students WHERE prn = $1`,
+    [prn.trim()]
+  );
+  return rows[0] ?? null;
+}
+
+export async function getStudentByEmail(email) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT prn, name, college_email, password_hash, roll_number
+     FROM students WHERE college_email = $1`,
+    [email.trim().toLowerCase()]
+  );
+  return rows[0] ?? null;
+}
+
+export async function findUserByPrn(prn) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT ${PUBLIC_COLUMNS} FROM users WHERE prn = $1`,
+    [prn.trim()]
+  );
+  return toPublicUser(rows[0]);
+}
+
+export async function createUserFromRoster(student) {
+  const pool = getPool();
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO users
+         (name, college_email, password_hash, prn, campus)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (prn) DO UPDATE
+         SET name = EXCLUDED.name,
+             college_email = EXCLUDED.college_email,
+             password_hash = EXCLUDED.password_hash
+       RETURNING ${PUBLIC_COLUMNS}`,
+      [
+        student.name,
+        student.college_email,
+        student.password_hash,
+        student.prn,
+        CAMPUS_NAME,
+      ]
+    );
+    return toPublicUser(rows[0]);
+  } catch (err) {
+    throw mapPgError(err);
+  }
+}
+
 export async function findUserById(id) {
   const pool = getPool();
   const { rows } = await pool.query(

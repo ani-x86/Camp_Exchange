@@ -66,18 +66,36 @@ sign up → email OTP → ID card + PRN check → verified
 git clone <repo-url>
 cd campusxchange
 
-# frontend
-cd client && npm install && npm run dev
+# install dependencies
+npm --prefix client install
+npm --prefix server install
 
-# backend
-cd server && npm install && npm run dev
+# configure server/.env with a working PostgreSQL DATABASE_URL, then create
+# the schema and import the student roster from StudentDB.csv
+npm run migrate
+npm run import:students
 
-# verification service
-cd verification-service && pip install -r requirements.txt && uvicorn main:app --reload
+# run the API and frontend in separate terminals
+npm run dev:server
+npm run dev:client
+
+# optional verification service
+cd verification-service
+pip install -r requirements.txt
+uvicorn main:app --reload
 ```
 
-Copy `.env.example` → `.env` in `client/`, `server/`, and `verification-service/`, and fill in:
-`MONGODB_URI`, `JWT_SECRET`, `CLOUDINARY_*`, `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET`, `SMTP_*`.
+Copy `.env.example` → `.env` in `client/`, `server/`, and `verification-service/`.
+Configure `DATABASE_URL`, JWT secrets, and any required `CLOUDINARY_*`,
+`RAZORPAY_*`, and `SMTP_*` values in `server/.env`. The server imports students
+from the root `StudentDB.csv`; PRN is the student roster primary key, and CSV
+passwords are bcrypt-hashed during import. Keep that CSV private and do not
+commit it. Set `FIREBASE_PROJECT_ID` in `server/.env` to the same project ID as
+`VITE_FIREBASE_PROJECT_ID` in `client/.env`. Google sign-in verifies the Firebase
+ID token on the backend and only grants access to a verified Google email in
+the imported student roster. Enable Google under Firebase Authentication
+providers and add `localhost` plus the deployed client hostname to its
+authorized domains.
 
 ## Vercel deployment
 

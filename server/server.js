@@ -20,6 +20,17 @@ import { webhookHandler } from './controllers/transaction.controller.js';
 import { initChatSocket } from './sockets/chatSocket.js';
 
 const app = express();
+const CLIENT_URLS = (process.env.CLIENT_URL || 'http://localhost:5173')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const allowClientOrigin = (origin, callback) => {
+  if (!origin || CLIENT_URLS.includes(origin)) {
+    callback(null, true);
+    return;
+  }
+  callback(null, false);
+};
 
 // ─── Ensure DB pool is ready on first request ─────────────────────────────────
 app.use(async (_req, _res, next) => {
@@ -38,7 +49,7 @@ app.post('/api/transactions/webhook', express.raw({ type: 'application/json' }),
 
 // ─── Core Middleware ──────────────────────────────────────────────────────────
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: allowClientOrigin,
   credentials: true,
 }));
 app.use(express.json());
@@ -83,7 +94,6 @@ app.use(errorHandler);
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
-const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
 const start = async () => {
   await connectDB();
@@ -92,7 +102,7 @@ const start = async () => {
 
   const io = new SocketServer(httpServer, {
     cors: {
-      origin: CLIENT_URL,
+      origin: allowClientOrigin,
       methods: ['GET', 'POST'],
       credentials: true,
     },

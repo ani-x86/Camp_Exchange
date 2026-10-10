@@ -1,6 +1,8 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
-import { signup, verifyOtp, login, refresh, logout } from '../controllers/auth.controller.js';
+import {
+  signup, verifyOtp, login, googleLogin, refresh, logout,
+} from '../controllers/auth.controller.js';
 
 const router = express.Router();
 
@@ -18,6 +20,7 @@ router.use(authLimiter);
 router.post('/signup', signup);
 router.post('/verify-otp', verifyOtp);
 router.post('/login', login);
+router.post('/google', googleLogin);
 router.post('/refresh', refresh);
 router.post('/logout', logout);
 
