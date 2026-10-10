@@ -8,6 +8,7 @@ import {
 } from '../controllers/product.controller.js';
 import authenticate from '../middleware/authenticate.js';
 import requireVerified from '../middleware/requireVerified.js';
+import { uploadProductImages } from '../middleware/upload.js';
 
 const router = express.Router();
 
@@ -21,7 +22,7 @@ router.use(authenticate);
 router.get('/me/listings', getMyProducts);
 
 // Highly protected routes (requires verified ID)
-router.post('/', requireVerified, createProduct);
+router.post('/', requireVerified, uploadProductImages, createProduct);
 router.delete('/:id', requireVerified, deleteProduct);
 
 export default router;

@@ -1,87 +1,61 @@
-/**
- * CampX — createListing (mock publish)
- * listing.md §7 Mock persistence
- *
- * Converts image files to data URLs (survive reload), persists to localStorage,
- * and returns the new Listing object.
- *
- * Designed as a thin async function that can later be swapped for an RTK Query
- * mutation without touching UI components.
- */
+import { readApiResponse } from '../../services/apiResponse';
 
-const STORAGE_KEY = 'campx.listings';
-
-function readListings() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
+function getAccessToken() {
+  const token = localStorage.getItem('accessToken');
+  if (!token) {
+    throw new Error('Your session has expired. Sign in again to publish a listing.');
   }
+  return token;
 }
 
-function writeListings(listings) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(listings));
-  } catch (err) {
-    if (err.name === 'QuotaExceededError') {
-      throw new Error(
-        'Images are too large to save. Remove a photo and try again.'
-      );
-    }
-    throw err;
-  }
-}
-
-/**
- * fileToDataUrl — returns a Promise<string> data URL for a File.
- */
-function fileToDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => resolve(e.target.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+function toListing(product, seller) {
+  return {
+    ...product,
+    images: product.images.map((image) => image.url),
+    seller: {
+      name: product.sellerName || seller?.name,
+      verified: product.sellerVerified ?? seller?.verified,
+      campus: seller?.campus,
+    },
+  };
 }
 
 /**
  * createListing(draft, seller) → Promise<Listing>
  *
- * @param {object} draft - { title, category, price (string), description, condition, images: ListingImage[] }
- * @param {object} seller - { name, verified, campus }
+ * Publishes image files and listing fields to the authenticated products API.
  */
 export async function createListing(draft, seller) {
-  // Sort: primary first
-  const sorted = [...draft.images].sort((a, b) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0));
-  const dataUrls = await Promise.all(sorted.map((img) => fileToDataUrl(img.file)));
+  const formData = new FormData();
+  formData.append('itemTitle', draft.title.trim());
+  formData.append('category', draft.category);
+  formData.append('price', draft.price);
+  formData.append('description', draft.description.trim());
+  formData.append('condition', draft.condition || '');
 
-  const listing = {
-    id: crypto.randomUUID(),
-    title: draft.title.trim(),
-    category: draft.category,
-    price: Number(draft.price),
-    description: draft.description.trim(),
-    condition: draft.condition || null,
-    images: dataUrls, // primary first
-    seller: {
-      name: seller.name,
-      verified: seller.verified,
-      campus: seller.campus,
-    },
-    createdAt: new Date().toISOString(),
-    status: 'active',
-  };
+  const sortedImages = [...draft.images]
+    .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary));
+  for (const image of sortedImages) {
+    formData.append('images', image.file);
+  }
 
-  const existing = readListings();
-  writeListings([listing, ...existing]);
-  return listing;
+  const response = await fetch('/api/products', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${getAccessToken()}` },
+    body: formData,
+  });
+  const { product } = await readApiResponse(response, 'Could not publish this listing.');
+  return toListing(product, seller);
 }
 
 /**
- * getListings() → Listing[]
- * Returns all listings from localStorage (newest first).
+ * getListings() → Promise<Listing[]>
+ * Returns the authenticated user's persisted listings.
  */
-export function getListings() {
-  return readListings();
+export async function getListings() {
+  const response = await fetch('/api/products/me/listings', {
+    headers: { Authorization: `Bearer ${getAccessToken()}` },
+  });
+  const { products } = await readApiResponse(response, 'Could not load your listings.');
+  return products.map((product) => toListing(product));
 }
